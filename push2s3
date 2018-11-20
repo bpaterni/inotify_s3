@@ -6,10 +6,19 @@
 # Watches specified directory for changes and copy newly created
 # or modified files to Amazon S3 Cloud.
 
-WATCH_DIR='/some/dir'
-PID_FILE='/var/run/push2s3.pid'
-BUCKET='amazon_bucket_name'
-len=${#WATCH_DIR}
+#WATCH_DIR='/some/dir'
+#PID_FILE='/var/run/push2s3.pid'
+#BUCKET='amazon_bucket_name'
+
+: "${PUSH2S3_WATCH_DIR:?Environment variable PUSH2S3_WATCH_DIR is not set}"
+: "${PUSH2S3_BUCKET:?Environment variable PUSH2S3_BUCKET is not set}"
+
+if [ ! -d "$PUSH2S3_WATCH_DIR" ]; then
+  echo "ERROR: Directory '${PUSH2S3_WATCH_DIR}' does not exist!"
+  exit 1
+fi
+
+len=${#PUSH2S3_WATCH_DIR}
 
 # verify inotify installed
 if [ ! -x "/usr/bin/inotifywait" ] ; then
@@ -19,7 +28,7 @@ if [ ! -x "/usr/bin/inotifywait" ] ; then
 fi
 
 # create PID file
-echo $$ > $PID_FILE
+#echo $$ > $PID_FILE
 
 # file upload
 function upload() {
@@ -27,18 +36,18 @@ function upload() {
     local file=$2
     local target=${path:$len}
 
-    aws s3 cp $path$file s3://$BUCKET$target$file
+    aws s3 cp $path$file s3://$PUSH2S3_BUCKET$target$file
 }
 function delete() {
     local path=$1
     local file=$2
     local target=${path:$len}
 
-    aws s3 rm s3://$BUCKET$target$file
+    aws s3 rm s3://$PUSH2S3_BUCKET$target$file
 }
 
 # init
-inotifywait --recursive --monitor --exclude '.*\.sw[px]*$|4913|~$' $WATCH_DIR |
+inotifywait --recursive --monitor --exclude '.*\.sw[px]*$|4913|~$' $PUSH2S3_WATCH_DIR |
 while read action_dir event_list action_file; do
     if [[ $file =~ .*/\..* ]]; then
         echo "Hidden file ignored"
