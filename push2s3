@@ -49,7 +49,7 @@ function delete() {
 # init
 inotifywait --recursive --monitor --exclude '.*\.sw[px]*$|4913|~$' $PUSH2S3_WATCH_DIR |
 while read action_dir event_list action_file; do
-    if [[ $file =~ .*/\..* ]]; then
+    if [[ ${action_dir}${action_file} =~ .*/\..* ]]; then
         echo "Hidden file ignored"
     else
         case "${event_list}" in
