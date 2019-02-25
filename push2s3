@@ -36,14 +36,14 @@ function upload() {
     local file=$2
     local target=${path:$len}
 
-    aws s3 cp $path$file s3://$PUSH2S3_BUCKET$target$file
+    aws s3 cp "${path}${file}" "s3://${PUSH2S3_BUCKET}${target}${file}"
 }
 function delete() {
     local path=$1
     local file=$2
     local target=${path:$len}
 
-    aws s3 rm s3://$PUSH2S3_BUCKET$target$file
+    aws s3 rm "s3://${PUSH2S3_BUCKET}${target}${file}"
 }
 
 # init
