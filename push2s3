@@ -52,12 +52,12 @@ while read action_dir event_list action_file; do
     if [[ ${action_dir}${action_file} =~ .*/\..* ]]; then
         echo "Hidden file ignored"
     else
-        case "${event_list}" in
-          DELETE* )
-            echo "DELETE from s3 $action_dir$action_file"
-            delete "$action_dir" "$action_file"
-          ;;
-        esac
+        #case "${event_list}" in
+        #  DELETE* )
+        #    echo "DELETE from s3 $action_dir$action_file"
+        #    delete "$action_dir" "$action_file"
+        #  ;;
+        #esac
 
         if [ -f "$action_dir$action_file" ]; then # only process a file, not a directory
             case "${event_list}" in
