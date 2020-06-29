@@ -5,6 +5,10 @@
 #
 # Watches specified directory for changes and copy newly created
 # or modified files to Amazon S3 Cloud.
+#
+# 2020.06.28 - Augment the script to pull AWS access credentials from vault.
+#
+# TODO: cache credentials in some way to avoid pulling fresh on every call
 
 #WATCH_DIR='/some/dir'
 #PID_FILE='/var/run/push2s3.pid'
@@ -12,6 +16,10 @@
 
 : "${PUSH2S3_WATCH_DIR:?Environment variable PUSH2S3_WATCH_DIR is not set}"
 : "${PUSH2S3_BUCKET:?Environment variable PUSH2S3_BUCKET is not set}"
+: "${VAULT_ROLE_LOGIN_PATH:?Environment variable VAULT_ROLE_LOGIN_PATH is not set}"
+: "${VAULT_ROLE_ID:?Environment variable VAULT_ROLE_ID is not set}"
+: "${VAULT_ROLE_SECRET_ID:?Environment variable VAULT_ROLE_SECRET_ID is not set}"
+: "${VAULT_KV_ACCESS_TOKEN_PATH:?Environment variable VAULT_KV_ACCESS_TOKEN_PATH is not set}"
 
 if [ ! -d "$PUSH2S3_WATCH_DIR" ]; then
   echo "ERROR: Directory '${PUSH2S3_WATCH_DIR}' does not exist!"
@@ -27,8 +35,26 @@ if [ ! -x "/usr/bin/inotifywait" ] ; then
     exit 1
 fi
 
+# verify we have a binary for vault
+if [ ! -x "$(which vault)" ]; then
+  echo "ERROR: unable to find a binary for 'vault'!"
+  exit 1
+fi
+
 # create PID file
 #echo $$ > $PID_FILE
+
+function acquire_aws_creds() {
+  local vault_token="$(vault write "$VAULT_ROLE_LOGIN_PATH" -format=json role_id="$VAULT_ROLE_ID" secret_id="$VAULT_ROLE_SECRET_ID" | jq -r '.auth.client_token')"
+  local vault_s3_access_token_kv_output="$(VAULT_TOKEN="$vault_token" vault kv get -format=json "$VAULT_KV_ACCESS_TOKEN_PATH")"
+  local aws_access_key_id="$(echo "$vault_s3_access_token_kv_output" | jq -r '.data.data.aws_access_key_id')"
+  local aws_secret_access_key="$(echo "$vault_s3_access_token_kv_output" | jq -r '.data.data.aws_secret_access_key')"
+  local aws_session_token="$(echo "$vault_s3_access_token_kv_output" | jq -r '.data.data.aws_session_token')"
+
+  export AWS_ACCESS_KEY_ID="$aws_access_key_id"
+  export AWS_SECRET_ACCESS_KEY="$aws_secret_access_key"
+  export AWS_SESSION_TOKEN="$aws_session_token"
+}
 
 # file upload
 function upload() {
@@ -36,12 +62,16 @@ function upload() {
     local file=$2
     local target=${path:$len}
 
+    acquire_aws_creds
+
     aws s3 cp "${path}${file}" "s3://${PUSH2S3_BUCKET}${target}${file}"
 }
 function delete() {
     local path=$1
     local file=$2
     local target=${path:$len}
+
+    acquire_aws_creds
 
     aws s3 rm "s3://${PUSH2S3_BUCKET}${target}${file}"
 }
